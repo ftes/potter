@@ -4,7 +4,8 @@ defmodule Potter.Repo.Migrations.CreateOrders do
   def change do
     create table(:orders) do
       add :description, :string
-      add :extra_cheese?, :boolean, default: false, null: false
+      add :extra_cheese?, :boolean
+      add :vegetarian?, :boolean
       add :cheese_type, :string
       add :deliver_asap?, :boolean
       add :deliver_at, :time

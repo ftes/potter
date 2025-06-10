@@ -1,4 +1,6 @@
 defmodule Potter.Orders.Order do
+  alias Potter.Orders.Order
+  alias Ecto.Changeset
   alias Potter.FormSchema
   use Ecto.Schema
   import Ecto.Changeset
@@ -18,22 +20,23 @@ defmodule Potter.Orders.Order do
 
   @doc false
   def changeset(order, attrs) do
+    fields = ~w(description deliver_asap? deliver_at vegetarian? extra_cheese?)a
+
     order
-    |> schema_cast(
-      attrs,
-      ~w(description vegetarian? extra_cheese? cheese_type deliver_asap? deliver_at)a
-    )
-    |> schema_validate_inclusion_if(& &1.vegetarian?, :cheese_type, ~w(fake_cheese)a)
-    |> schema_hide_if(&(not &1.extra_cheese?), :cheese_type)
-    |> schema_override_if(& &1.deliver_asap?, :deliver_at, deliver_at())
+    |> schema_cast(attrs, fields: fields)
     |> put_change(:status, :requested)
+    |> then_if(& &1.extra_cheese?, &schema_add_field(&1, :cheese_type, after: :extra_cheese?))
+    |> then_if(& &1.vegetarian?, &schema_validate_inclusion(&1, :cheese_type, ~w(fake_cheese)a))
+    |> then_if(& &1.deliver_asap?, &schema_override(&1, :deliver_at, deliver_at(&1)))
     |> schema_validate_required(~w(cheese_type deliver_at)a)
   end
 
-  defp schema_cast(order, attrs, fields) do
+  defp schema_cast(order, attrs, opts) do
+    fields = Access.fetch!(opts, :fields)
+
     order
     |> cast(attrs, fields)
-    |> put_change(:schema, FormSchema.new(fields: fields))
+    |> put_change(:schema, FormSchema.new(opts))
   end
 
   defp schema_validate_inclusion(changeset, field, values) do
@@ -42,28 +45,16 @@ defmodule Potter.Orders.Order do
     |> update_change(:schema, &FormSchema.set_attrs(&1, field, %{options: values}))
   end
 
-  defp schema_validate_inclusion_if(changeset, condition, field, values) do
-    then_if(changeset, condition, &schema_validate_inclusion(&1, field, values))
-  end
-
-  defp schema_hide(changeset, field) do
+  defp schema_add_field(changeset, field, opts) do
     changeset
-    |> delete_change(field)
-    |> update_change(:schema, &FormSchema.remove(&1, field))
-  end
-
-  defp schema_hide_if(changeset, condition, field) do
-    then_if(changeset, condition, &schema_hide(&1, field))
+    |> cast(changeset.params, [field])
+    |> update_change(:schema, &FormSchema.add_field(&1, field, opts))
   end
 
   defp schema_override(changeset, field, value) do
     changeset
     |> put_change(field, value)
     |> update_change(:schema, &FormSchema.disable(&1, field))
-  end
-
-  defp schema_override_if(changeset, condition, field, value) do
-    then_if(changeset, condition, &schema_override(&1, field, value))
   end
 
   defp schema_validate_required(changeset, required) do
@@ -83,5 +74,11 @@ defmodule Potter.Orders.Order do
     end
   end
 
-  defp deliver_at(), do: DateTime.utc_now() |> DateTime.shift(minute: 30)
+  defp deliver_at(%Changeset{} = changeset), do: changeset |> apply_changes |> deliver_at()
+
+  defp deliver_at(%Order{extra_cheese?: true}),
+    do: Time.utc_now() |> Time.shift(minute: 45) |> Calendar.strftime("%H:%M")
+
+  defp deliver_at(%Order{}),
+    do: Time.utc_now() |> Time.shift(minute: 30) |> Calendar.strftime("%H:%M")
 end

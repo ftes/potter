@@ -34,11 +34,14 @@ defmodule PotterWeb.SchemaForm do
         :boolean ->
           %{type: "checkbox"}
 
+        :time ->
+          %{type: "time"}
+
         _ ->
           %{}
       end
 
     schema_attrs = Map.get(schema.attrs, field, %{})
-    dbg(Map.merge(default_attrs, schema_attrs))
+    Map.merge(default_attrs, schema_attrs)
   end
 end
