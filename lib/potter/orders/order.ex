@@ -5,6 +5,8 @@ defmodule Potter.Orders.Order do
   use Ecto.Schema
   import Ecto.Changeset
 
+  ## TODO Polymorphic embed with JSON schema forms
+
   schema "orders" do
     field :description, :string
     field :vegetarian?, :boolean, default: false
