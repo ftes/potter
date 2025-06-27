@@ -212,7 +212,7 @@ defmodule PotterWeb.CoreComponents do
         :options,
         &Enum.map(&1, fn
           atom when is_atom(atom) ->
-            {Gettext.dgettext(PotterWeb.Gettext, "forms", "#{assigns.name}.#{atom}"), atom}
+            {Gettext.dgettext(PotterWeb.Gettext, "form", "#{assigns.name}.#{atom}"), atom}
 
           other ->
             other

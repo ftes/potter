@@ -1,0 +1,30 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+
+msgid "order[description]"
+msgstr "Description"
+
+msgid "order[deliver_asap?]"
+msgstr "As soon as possible?"
+
+msgid "order[deliver_at]"
+msgstr "Deliver at"
+
+msgid "order[vegetarian?]"
+msgstr "Vegetarian?"
+
+msgid "order[extra_cheese?]"
+msgstr "Extra cheese?"
+
+msgid "order[cheese_type]"
+msgstr "Cheese type"
+
+msgid "order[cheese_type].gouda"
+msgstr "Gouda"
+
+msgid "order[cheese_type].mozzarella"
+msgstr "Mozzarella"
+
+msgid "order[cheese_type].fake_cheese"
+msgstr "Fake cheese"

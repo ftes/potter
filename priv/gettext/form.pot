@@ -1,0 +1,26 @@
+msgid "order[description]"
+msgstr ""
+
+msgid "order[deliver_asap?]"
+msgstr ""
+
+msgid "order[deliver_at]"
+msgstr ""
+
+msgid "order[vegetarian?]"
+msgstr ""
+
+msgid "order[extra_cheese?]"
+msgstr ""
+
+msgid "order[cheese_type]"
+msgstr ""
+
+msgid "order[cheese_type].gouda"
+msgstr ""
+
+msgid "order[cheese_type].mozzarella"
+msgstr ""
+
+msgid "order[cheese_type].fake_cheese"
+msgstr ""

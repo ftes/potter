@@ -2,46 +2,50 @@ defmodule PotterWeb.SchemaForm do
   use PotterWeb, :html
 
   attr :form, Phoenix.HTML.Form, required: true
-  attr :schema, PotterWeb.Schema
+  attr :fields, :list
+  attr :rest, :global
 
-  def inputs_for_schema(assigns) do
-    assigns = assign_new(assigns, :schema, fn -> assigns.form[:schema].value end)
+  def inputs_for_schema(%{form: form} = assigns) do
+    dbg(:inputs_for)
+    schema = form[:schema].value
+    schema = if fields = assigns[:fields], do: Keyword.take(schema, fields), else: schema
+    assigns = assign(assigns, :schema, schema)
 
     ~H"""
-    <%= for field <- @schema.fields do %>
-      <%= if assigns[field] not in [nil, []] do %>
-        {render_slot(assigns[field])}
-      <% else %>
-        <.input
-          field={@form[field]}
-          required={field in @schema.required}
-          disabled={field in @schema.disabled}
-          {attrs(@form, @schema, field)}
-        />
-      <% end %>
+    <%= for {field, field_schema} <- @schema do %>
+      <.input_for_schema field={@form[field]} schema={field_schema} {@rest} />
     <% end %>
     """
   end
 
-  def attrs(form, schema, field) do
-    struct = form.source.data.__struct__
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :schema, :list
+  attr :rest, :global
 
-    default_attrs =
-      case struct.__schema__(:type, field) do
-        {:parameterized, {Ecto.Enum, _}} ->
-          %{type: "select", options: Ecto.Enum.values(struct, field)}
+  def input_for_schema(%{field: %{field: field}} = assigns) do
+    dbg(:input_for)
+    assigns = assign_new(assigns, :schema, fn -> assigns.form[:schema].value[field] end)
 
-        :boolean ->
-          %{type: "checkbox"}
+    ~H"""
+    <.input :if={!@schema[:hidden]} field={@field} {attrs(@field)} {Map.new(@schema)} {@rest} />
+    """
+  end
 
-        :time ->
-          %{type: "time"}
+  def attrs(%Phoenix.HTML.FormField{} = field) do
+    struct = field.form.source.data.__struct__
 
-        _ ->
-          %{}
-      end
+    case struct.__schema__(:type, field.field) do
+      {:parameterized, {Ecto.Enum, _}} ->
+        %{type: "select", options: Ecto.Enum.values(struct, field.field)}
 
-    schema_attrs = Map.get(schema.attrs, field, %{})
-    Map.merge(default_attrs, schema_attrs)
+      :boolean ->
+        %{type: "checkbox"}
+
+      :time ->
+        %{type: "time"}
+
+      _ ->
+        %{}
+    end
   end
 end

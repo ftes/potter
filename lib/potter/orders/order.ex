@@ -1,7 +1,6 @@
 defmodule Potter.Orders.Order do
   alias Potter.Orders.Order
   alias Ecto.Changeset
-  alias Potter.FormSchema
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -20,67 +19,67 @@ defmodule Potter.Orders.Order do
     timestamps(type: :utc_datetime)
   end
 
-  @doc false
   def changeset(order, attrs) do
-    fields = ~w(description deliver_asap? deliver_at vegetarian? extra_cheese?)a
+    schema = [
+      description: [:required],
+      deliver_asap?: [],
+      deliver_at: [:required, &(&1.deliver_asap? && [:disabled, value: deliver_at(&1)])],
+      vegetarian?: [],
+      extra_cheese?: [],
+      cheese_type:
+        [:required, hidden: &(not &1.extra_cheese?)] ++
+          [&(&1.vegetarian? && [options: ~w(fake_cheese)a])]
+    ]
 
-    order
-    |> schema_cast(attrs, fields: fields)
-    |> put_change(:status, :requested)
-    |> then_if(& &1.extra_cheese?, &schema_add_field(&1, :cheese_type, after: :extra_cheese?))
-    |> then_if(& &1.vegetarian?, &schema_validate_inclusion(&1, :cheese_type, ~w(fake_cheese)a))
-    |> then_if(& &1.deliver_asap?, &schema_override(&1, :deliver_at, deliver_at(&1)))
-    |> schema_validate_required(~w(cheese_type deliver_at)a)
+    changeset = cast(order, attrs, []) |> put_change(:schema, [])
+
+    Enum.reduce(schema, changeset, &handle_field/2)
   end
 
-  defp schema_cast(order, attrs, opts) do
-    fields = Access.fetch!(opts, :fields)
+  defp resolve_opts(nil, _), do: []
+  defp resolve_opts(false, _), do: []
 
-    order
-    |> cast(attrs, fields)
-    |> put_change(:schema, FormSchema.new(opts))
+  defp resolve_opts(opts, applied) when is_list(opts) do
+    Enum.flat_map(opts, fn
+      key when is_atom(key) -> [{key, true}]
+      fun when is_function(fun, 1) -> applied |> fun.() |> resolve_opts(applied)
+      {key, fun} when is_atom(key) and is_function(fun, 1) -> [{key, fun.(applied)}]
+      {key, value} when is_atom(key) -> [{key, value}]
+    end)
+    |> Keyword.new()
   end
 
-  defp schema_validate_inclusion(changeset, field, values) do
+  defp handle_field({field, opts}, changeset) do
+    applied = apply_changes(changeset)
+    opts = resolve_opts(opts, applied)
+
     changeset
-    |> validate_inclusion(field, values)
-    |> update_change(:schema, &FormSchema.set_attrs(&1, field, %{options: values}))
+    |> update_change(:schema, &(&1 ++ [{field, opts}]))
+    |> then_if(
+      !opts[:hidden] and !opts[:disabled],
+      &cast(&1, changeset.params, [field], force_changes: true)
+    )
+    |> then_if(opts[:hidden], &put_change(&1, field, nil))
+    |> then_if(Keyword.has_key?(opts, :value), &put_change(&1, field, opts[:value]))
+    |> then_if(!opts[:hidden] and opts[:required], &validate_required(&1, field))
+    |> then_if(opts[:options], &validate_inclusion(&1, field, opts[:options]))
   end
 
-  defp schema_add_field(changeset, field, opts) do
-    changeset
-    |> cast(changeset.params, [field])
-    |> update_change(:schema, &FormSchema.add_field(&1, field, opts))
-  end
+  defp then_if(input, condition, then) when is_function(then, 1) do
+    condition =
+      case condition do
+        fun when is_function(fun, 1) -> input |> apply_changes() |> fun.()
+        other -> other
+      end
 
-  defp schema_override(changeset, field, value) do
-    changeset
-    |> put_change(field, value)
-    |> update_change(:schema, &FormSchema.disable(&1, field))
-  end
-
-  defp schema_validate_required(changeset, required) do
-    schema = fetch_change!(changeset, :schema)
-    required = Enum.filter(required, &(&1 in schema.fields))
-
-    validate_required(changeset, required)
-    |> update_change(:schema, &FormSchema.require(&1, required))
-  end
-
-  defp then_if(changeset, condition, then)
-       when is_function(condition, 1) and is_function(then, 1) do
-    if changeset |> apply_changes() |> condition.() do
-      then.(changeset)
-    else
-      changeset
-    end
+    if condition, do: then.(input), else: input
   end
 
   defp deliver_at(%Changeset{} = changeset), do: changeset |> apply_changes |> deliver_at()
 
-  defp deliver_at(%Order{extra_cheese?: true}),
-    do: Time.utc_now() |> Time.shift(minute: 45) |> Calendar.strftime("%H:%M")
+  defp deliver_at(%Order{extra_cheese?: true}), do: shift_now(minute: 45)
+  defp deliver_at(%Order{}), do: shift_now(minute: 30)
 
-  defp deliver_at(%Order{}),
-    do: Time.utc_now() |> Time.shift(minute: 30) |> Calendar.strftime("%H:%M")
+  defp shift_now(duration),
+    do: Time.utc_now() |> Time.shift(duration) |> Time.truncate(:second) |> Map.put(:second, 0)
 end
