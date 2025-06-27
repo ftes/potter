@@ -15,7 +15,15 @@ defmodule PotterWeb.OrderLive.Form do
       </.header>
 
       <.form for={@form} id="order-form" phx-change="validate" phx-submit="save">
-        <SchemaForm.inputs_for_schema form={@form} />
+        <SchemaForm.form_for_schema form={@form} ui_schema={:description} />
+        <SchemaForm.form_for_schema
+          form={@form}
+          ui_schema={{:row, [:deliver_asap?, :deliver_at], %{}}}
+        />
+        <SchemaForm.form_for_schema
+          form={@form}
+          ui_schema={{:col, ~w(vegetarian? extra_cheese? cheese_type)a, %{}}}
+        />
         <footer>
           <.button phx-disable-with="Saving..." variant="primary">Save Order</.button>
           <.button navigate={return_path(@return_to, @order)}>Cancel</.button>

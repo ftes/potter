@@ -23,6 +23,9 @@ defmodule Potter.Orders.Order do
     schema = [
       description: [:required],
       deliver_asap?: [],
+      # user defined form:
+      # - conditions as data, e.g. {:if, {:eq, :deliver_asap?, true}, [:disabled]}
+      # - conditions as LUA/restricted elixir
       deliver_at: [:required, &(&1.deliver_asap? && [:disabled, value: deliver_at(&1)])],
       vegetarian?: [],
       extra_cheese?: [],
