@@ -21,26 +21,8 @@ defmodule PotterWeb.SchemaForm do
     assigns = assign_new(assigns, :schema, fn -> assigns.field.form[:schema].value[field] end)
 
     ~H"""
-    <.input :if={!@schema[:hidden]} field={@field} {attrs(@field)} {Map.new(@schema)} {@rest} />
+    <.input :if={!@schema[:hidden]} field={@field} {Map.new(@schema)} {@rest} />
     """
-  end
-
-  def attrs(%Phoenix.HTML.FormField{} = field) do
-    struct = field.form.source.data.__struct__
-
-    case struct.__schema__(:type, field.field) do
-      {:parameterized, {Ecto.Enum, _}} ->
-        %{type: "select", options: Ecto.Enum.values(struct, field.field)}
-
-      :boolean ->
-        %{type: "checkbox"}
-
-      :time ->
-        %{type: "time"}
-
-      _ ->
-        %{}
-    end
   end
 
   defp default_ui_schema(data_schema) do

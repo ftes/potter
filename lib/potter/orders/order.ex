@@ -20,6 +20,8 @@ defmodule Potter.Orders.Order do
   end
 
   def changeset(order, attrs) do
+    # This could (nearly)  be stored in a database
+    # TODO declarative conditions
     schema = [
       description: [:required],
       deliver_asap?: [],
@@ -39,34 +41,54 @@ defmodule Potter.Orders.Order do
     Enum.reduce(schema, changeset, &handle_field/2)
   end
 
-  defp resolve_opts(nil, _), do: []
-  defp resolve_opts(false, _), do: []
+  defp handle_field({key, opts}, changeset) do
+    applied = apply_changes(changeset)
+    opts = resolve_opts(key, opts, applied)
 
-  defp resolve_opts(opts, applied) when is_list(opts) do
+    changeset
+    |> update_change(:schema, &(&1 ++ [{key, opts}]))
+    |> then_if(
+      !opts[:hidden] and !opts[:disabled],
+      &cast(&1, changeset.params, [key], force_changes: true)
+    )
+    |> then_if(opts[:hidden], &put_change(&1, key, nil))
+    |> then_if(Keyword.has_key?(opts, :value), &put_change(&1, key, opts[:value]))
+    |> then_if(!opts[:hidden] and opts[:required], &validate_required(&1, key))
+    |> then_if(opts[:options], &validate_inclusion(&1, key, opts[:options]))
+  end
+
+  defp resolve_opts(_key, nil, _), do: []
+  defp resolve_opts(_key, false, _), do: []
+
+  defp resolve_opts(key, opts, applied) when is_list(opts) do
     Enum.flat_map(opts, fn
       key when is_atom(key) -> [{key, true}]
-      fun when is_function(fun, 1) -> applied |> fun.() |> resolve_opts(applied)
+      fun when is_function(fun, 1) -> resolve_opts(key, fun.(applied), applied)
       {key, fun} when is_atom(key) and is_function(fun, 1) -> [{key, fun.(applied)}]
       {key, value} when is_atom(key) -> [{key, value}]
     end)
     |> Keyword.new()
+    |> then(&Keyword.merge(default_opts(key), &1))
   end
 
-  defp handle_field({field, opts}, changeset) do
-    applied = apply_changes(changeset)
-    opts = resolve_opts(opts, applied)
+  defp default_opts(key) do
+    struct = __MODULE__
 
-    changeset
-    |> update_change(:schema, &(&1 ++ [{field, opts}]))
-    |> then_if(
-      !opts[:hidden] and !opts[:disabled],
-      &cast(&1, changeset.params, [field], force_changes: true)
-    )
-    |> then_if(opts[:hidden], &put_change(&1, field, nil))
-    |> then_if(Keyword.has_key?(opts, :value), &put_change(&1, field, opts[:value]))
-    |> then_if(!opts[:hidden] and opts[:required], &validate_required(&1, field))
-    |> then_if(opts[:options], &validate_inclusion(&1, field, opts[:options]))
+    case struct.__schema__(:type, key) do
+      {:parameterized, {Ecto.Enum, _}} -> [type: "select", options: Ecto.Enum.values(struct, key)]
+      :boolean -> [type: "checkbox"]
+      :time -> [type: "time"]
+      _ -> []
+    end
   end
+
+  defp deliver_at(%Changeset{} = changeset), do: changeset |> apply_changes |> deliver_at()
+
+  defp deliver_at(%Order{extra_cheese?: true}), do: shift_now(minute: 45)
+  defp deliver_at(%Order{}), do: shift_now(minute: 30)
+
+  defp shift_now(duration),
+    do: Time.utc_now() |> Time.shift(duration) |> Time.truncate(:second) |> Map.put(:second, 0)
 
   defp then_if(input, condition, then) when is_function(then, 1) do
     condition =
@@ -77,12 +99,4 @@ defmodule Potter.Orders.Order do
 
     if condition, do: then.(input), else: input
   end
-
-  defp deliver_at(%Changeset{} = changeset), do: changeset |> apply_changes |> deliver_at()
-
-  defp deliver_at(%Order{extra_cheese?: true}), do: shift_now(minute: 45)
-  defp deliver_at(%Order{}), do: shift_now(minute: 30)
-
-  defp shift_now(duration),
-    do: Time.utc_now() |> Time.shift(duration) |> Time.truncate(:second) |> Map.put(:second, 0)
 end
